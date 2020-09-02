@@ -817,10 +817,8 @@ public interface KStream<K, V> {
      *
      * @param topic the topic name
      * @return a {@code KStream} that contains the exact same (and potentially repartitioned) records as this {@code KStream}
-     * @deprecated since 2.6; used {@link #repartition()} instead
      */
     // TODO: when removed, update `StreamsResetter` decription of --intermediate-topics
-    @Deprecated
     KStream<K, V> through(final String topic);
 
     /**
@@ -838,9 +836,7 @@ public interface KStream<K, V> {
      * @param topic     the topic name
      * @param produced  the options to use when producing to the topic
      * @return a {@code KStream} that contains the exact same (and potentially repartitioned) records as this {@code KStream}
-     * @deprecated since 2.6; use {@link #repartition(Repartitioned)} instead
      */
-    @Deprecated
     KStream<K, V> through(final String topic,
                           final Produced<K, V> produced);
 

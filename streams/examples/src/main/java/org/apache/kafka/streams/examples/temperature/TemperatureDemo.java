@@ -16,21 +16,48 @@
  */
 package org.apache.kafka.streams.examples.temperature;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.kstream.TimeWindows;
 import org.apache.kafka.streams.kstream.Windowed;
 import org.apache.kafka.streams.kstream.WindowedSerdes;
 
+import java.io.IOException;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+
+import org.apache.kafka.common.utils.Bytes;
+import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.Grouped;
+import org.apache.kafka.streams.kstream.Joined;
+import org.apache.kafka.streams.kstream.KGroupedStream;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.KeyValueMapper;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.kstream.Predicate;
+import org.apache.kafka.streams.kstream.SessionWindows;
+import org.apache.kafka.streams.kstream.SlidingWindows;
+import org.apache.kafka.streams.state.KeyValueStore;
+import org.apache.kafka.streams.state.SessionStore;
+import org.apache.kafka.streams.state.WindowStore;
+
+import static org.apache.kafka.streams.kstream.Suppressed.BufferConfig.unbounded;
+import static org.apache.kafka.streams.kstream.Suppressed.untilTimeLimit;
+import static org.apache.kafka.streams.kstream.Suppressed.untilWindowCloses;
+
 
 /**
  * Demonstrates, using the high-level KStream DSL, how to implement an IoT demo application
@@ -79,6 +106,11 @@ public class TemperatureDemo {
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
 
+        final Topology topology = getTopology();
+
+        final String currentTopologyDescription = topology.describe().toString();
+        System.out.println(currentTopologyDescription);
+
         final StreamsBuilder builder = new StreamsBuilder();
 
         final KStream<String, String> source = builder.stream("iot-temperature");
@@ -123,5 +155,166 @@ public class TemperatureDemo {
             System.exit(1);
         }
         System.exit(0);
+    }
+
+    static Topology getTopology() {
+        final Serde<String> stringSerde = Serdes.String();
+        final Serde<Long> longSerde = Serdes.Long();
+        final LogDataPredicate notNullLogData = new LogDataPredicate();
+        final JsonSerializer<LogData> logDataSerializer = new JsonSerializer<>();
+        final JsonDeserializer<LogData> logDataDeserialzer = new JsonDeserializer<>();
+
+        final Map<String, Object> configMap = new HashMap<>();
+        configMap.put("class", LogData.class);
+        logDataDeserialzer.configure(configMap, false);
+
+        final Serde<LogData> logDataSerde = Serdes.serdeFrom(logDataSerializer, logDataDeserialzer);
+
+
+        final KeyValueMapper<Windowed<String>, Long, KeyValue<String, Long>> windowMapper = (wk, cnt) -> KeyValue.pair(wk.key(), cnt);
+
+        final StreamsBuilder builder = new StreamsBuilder();
+        final ObjectReader mapReader = new ObjectMapper().readerFor(Map.class);
+
+        final Map<String, String> changeLogConfigs = new HashMap<>();
+        changeLogConfigs.put("retention.bytes", "104857600");
+        changeLogConfigs.put("retention.ms", "21600000");
+        changeLogConfigs.put("cleanup.policy", "compact,delete");
+
+        final String windowedTopic = "windowed-node-counts";
+
+        final KStream<String, String> caasLogStream = builder.stream("logs.syslog",
+            Consumed.with(stringSerde, stringSerde)
+                .withOffsetResetPolicy(Topology.AutoOffsetReset.LATEST));
+
+
+
+        final KStream<String, LogData> logDataStream = caasLogStream.mapValues(value -> {
+            LogData returnValue = null;
+            try {
+                final Map<String, Object> jsonMap = mapReader.readValue(value);
+                returnValue = new LogData(jsonMap);
+            } catch (final IOException e) {
+            }
+            return returnValue;
+        });
+
+        final KStream<String, LogData> logDataByNodeName = logDataStream.filter(notNullLogData).map(
+            (key, logData) -> {
+                final String nodeNameKey = logData.nodeName;
+                return KeyValue.pair(nodeNameKey, logData);
+            }).through("node-name-repartition", Produced.with(stringSerde, logDataSerde));
+
+        final KGroupedStream<String, LogData> logDataKGroupedStream = logDataByNodeName
+            .groupByKey(Grouped.with(stringSerde, logDataSerde));
+
+        final KTable<Windowed<String>, Long> logData10MinuteWindowCount = logDataKGroupedStream
+            .windowedBy(TimeWindows.of(Duration.ofMinutes(10)).grace(Duration.ofMinutes(10)))
+            .count(
+                Materialized
+                    .<String, Long, WindowStore<Bytes, byte[]>>with(stringSerde, longSerde)
+                    .withLoggingEnabled(changeLogConfigs)
+                    .withRetention(Duration.ofHours(4))
+            );
+
+        logData10MinuteWindowCount
+            .toStream()
+            .map(windowMapper)
+            .to(windowedTopic, Produced.with(stringSerde, longSerde));
+
+        logDataKGroupedStream
+            .windowedBy(TimeWindows.of(Duration.ofMinutes(45)))
+            .count(
+                Materialized
+                    .<String, Long, WindowStore<Bytes, byte[]>>with(stringSerde, longSerde)
+                    .withLoggingEnabled(changeLogConfigs)
+            )
+            .toStream()
+            .map(windowMapper)
+            .to(windowedTopic, Produced.with(stringSerde, longSerde));
+
+        logDataKGroupedStream
+            .windowedBy(TimeWindows.of(Duration.ofMinutes(2)).advanceBy(Duration.ofSeconds(15)))
+            .count(
+                Materialized
+                    .<String, Long, WindowStore<Bytes, byte[]>>with(stringSerde, longSerde)
+                    .withLoggingEnabled(changeLogConfigs)
+            )
+            .toStream()
+            .map(windowMapper)
+            .to(windowedTopic, Produced.with(stringSerde, longSerde));
+
+        logDataKGroupedStream
+            .windowedBy(SessionWindows.with(Duration.ofMillis(5)))
+            .count(
+                Materialized
+                    .<String, Long, SessionStore<Bytes, byte[]>>with(stringSerde, longSerde)
+                    .withLoggingEnabled(changeLogConfigs)
+            )
+            .toStream()
+            .map(windowMapper)
+            .to(windowedTopic, Produced.with(stringSerde, longSerde));
+
+        logDataKGroupedStream
+            .windowedBy(SlidingWindows.withTimeDifferenceAndGrace(Duration.ofMinutes(10), Duration.ofMinutes(30)))
+            .count(
+                Materialized
+                    .<String, Long, WindowStore<Bytes, byte[]>>with(stringSerde, longSerde)
+                    .withLoggingEnabled(changeLogConfigs)
+            )
+            .toStream()
+            .map(windowMapper)
+            .to(windowedTopic, Produced.with(stringSerde, longSerde));
+
+        final KTable<String, Long> windowedCountTable = builder.table(windowedTopic, Consumed.with(stringSerde, longSerde));
+
+        logDataByNodeName.join(windowedCountTable,
+            (ld, l) -> ld.nodeName + " : " + l,
+            Joined.with(stringSerde, logDataSerde, longSerde))
+            .to("joined-counts", Produced.with(stringSerde, stringSerde));
+
+        final KStream<String, LogData> logDataByNetworkId = logDataStream.filter(notNullLogData).selectKey(
+            (key, logData) -> logData.networkId).through("network-id-repartition", Produced.with(stringSerde, logDataSerde));
+
+        logDataByNetworkId.groupByKey(Grouped.with(stringSerde, logDataSerde))
+            .count(Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>with(stringSerde, longSerde)
+                .withLoggingEnabled(changeLogConfigs))
+            .toStream().to("network-id-counts", Produced.with(stringSerde, longSerde));
+
+        final KStream<String, LogData> logDataByHostId = logDataStream.filter(notNullLogData).selectKey(
+            (key, logData) -> logData.k8sName).through("k8sName-id-repartition", Produced.with(stringSerde, logDataSerde));
+
+        logDataByHostId.groupByKey(Grouped.with(stringSerde, logDataSerde))
+            .count(Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>with(stringSerde, longSerde)
+                .withLoggingEnabled(changeLogConfigs))
+            .toStream().to("k8sName-counts", Produced.with(stringSerde, longSerde));
+
+        logDataStream.filter(notNullLogData).mapValues(logData -> {
+            final String timestamp = logData.timestamp;
+            final String source = logData.source;
+            return timestamp + source;
+        }).to("streams-soak-out", Produced.with(stringSerde, stringSerde));
+
+        logData10MinuteWindowCount
+            .suppress(untilWindowCloses(unbounded()).withName("logData10MinuteFinalCount"))
+            .toStream()
+            .map(windowMapper)
+            .to(windowedTopic, Produced.with(stringSerde, longSerde));
+
+        logData10MinuteWindowCount
+            .suppress(untilTimeLimit(Duration.ofMinutes(5), unbounded()).withName("logData10MinuteSuppressedCount"))
+            .toStream()
+            .map(windowMapper)
+            .to(windowedTopic, Produced.with(stringSerde, longSerde));
+
+        return builder.build();
+    }
+
+    private static class LogDataPredicate implements Predicate<String, LogData> {
+
+        @Override
+        public boolean test(final String s, final LogData logData) {
+            return null != logData;
+        }
     }
 }
