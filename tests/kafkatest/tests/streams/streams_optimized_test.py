@@ -118,7 +118,7 @@ class StreamsOptimizedTest(Test):
         with node.account.monitor_log(processor.STDOUT_FILE) as monitor:
             processor.start()
             monitor.wait_until('REBALANCING -> RUNNING with REPARTITION TOPIC COUNT=%s' % repartition_topic_count,
-                               timeout_sec=120,
+                               timeout_sec=240,
                                err_msg="Never saw 'REBALANCING -> RUNNING with REPARTITION TOPIC COUNT=%s' message "
                                        % repartition_topic_count + str(processor.node.account))
 
@@ -140,7 +140,7 @@ class StreamsOptimizedTest(Test):
         self.logger.info(list(processor.node.account.ssh_capture("ls -lh %s" % (processor.STDOUT_FILE), allow_fail=True)))
         wait_until(
             lambda: processor.node.account.ssh("grep --max-count 1 '%s' %s" % (pattern, processor.STDOUT_FILE), allow_fail=True) == 0,
-            timeout_sec=60
+            timeout_sec=120
         )
 
     def set_topics(self, processor):
