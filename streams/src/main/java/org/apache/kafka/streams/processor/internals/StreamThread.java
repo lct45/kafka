@@ -342,7 +342,8 @@ public class StreamThread extends Thread {
             logContext,
             adminClient,
             restoreConsumer,
-            userStateRestoreListener
+            userStateRestoreListener,
+            ThreadMetrics.restoreConsumerPollSensor(threadId, streamsMetrics)
         );
 
         final ThreadCache cache = new ThreadCache(logContext, cacheSizeBytes, streamsMetrics);

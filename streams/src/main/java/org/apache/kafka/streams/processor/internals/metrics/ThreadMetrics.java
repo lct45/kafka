@@ -80,6 +80,7 @@ public class ThreadMetrics {
     private static final String PUNCTUATE_RATE_DESCRIPTION = RATE_DESCRIPTION + PUNCTUATE_DESCRIPTION;
     private static final String PUNCTUATE_AVG_LATENCY_DESCRIPTION = "The average punctuate latency";
     private static final String PUNCTUATE_MAX_LATENCY_DESCRIPTION = "The maximum punctuate latency";
+    private static final String RESTORE_CONSUMER_POLL_TIME_DESCRIPTION = "The amount of time spent in poll by the restore consumer";
     private static final String SKIP_RECORDS_DESCRIPTION = "skipped records";
     private static final String SKIP_RECORD_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + SKIP_RECORDS_DESCRIPTION;
     private static final String SKIP_RECORD_RATE_DESCRIPTION = RATE_DESCRIPTION + SKIP_RECORDS_DESCRIPTION;
@@ -159,6 +160,21 @@ public class ThreadMetrics {
             Sensor.RecordingLevel.INFO,
             streamsMetrics
         );
+    }
+
+    public static Sensor restoreConsumerPollSensor(final String threadId,
+                                                   final StreamsMetricsImpl streamsMetrics) {
+        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, "restore-consumer-poll", Sensor.RecordingLevel.INFO);
+        final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap(threadId);
+        final String threadLevelGroup = threadLevelGroup(streamsMetrics);
+        addSumMetricToSensor(
+            sensor,
+            threadLevelGroup,
+            tagMap,
+            "restore-consumer-poll-time",
+            RESTORE_CONSUMER_POLL_TIME_DESCRIPTION
+        );
+        return sensor;
     }
 
     public static Sensor processLatencySensor(final String threadId,
