@@ -28,6 +28,7 @@ import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.streams.StreamsConfig;
@@ -52,6 +53,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.lang.Long.min;
 import static org.apache.kafka.streams.processor.internals.ClientUtils.fetchCommittedOffsets;
 
 /**
@@ -212,6 +214,7 @@ public class StoreChangelogReader implements ChangelogReader {
     private final Admin adminClient;
 
     private long lastUpdateOffsetTime;
+    private final Sensor pollSensor;
 
     void setMainConsumer(final Consumer<byte[], byte[]> consumer) {
         this.mainConsumer = consumer;
@@ -222,7 +225,8 @@ public class StoreChangelogReader implements ChangelogReader {
                                 final LogContext logContext,
                                 final Admin adminClient,
                                 final Consumer<byte[], byte[]> restoreConsumer,
-                                final StateRestoreListener stateRestoreListener) {
+                                final StateRestoreListener stateRestoreListener,
+                                final Sensor pollSensor) {
         this.time = time;
         this.log = logContext.logger(StoreChangelogReader.class);
         this.state = ChangelogReaderState.ACTIVE_RESTORING;
@@ -236,6 +240,7 @@ public class StoreChangelogReader implements ChangelogReader {
         this.lastUpdateOffsetTime = 0L;
 
         this.changelogs = new HashMap<>();
+        this.pollSensor = pollSensor;
     }
 
     private static String recordEndOffset(final Long endOffset) {
@@ -427,11 +432,14 @@ public class StoreChangelogReader implements ChangelogReader {
         if (!restoringChangelogs.isEmpty()) {
             final ConsumerRecords<byte[], byte[]> polledRecords;
 
+            final long pollStartTime = time.milliseconds();
             try {
                 // for restoring active and updating standby we may prefer different poll time
                 // in order to make sure we call the main consumer#poll in time.
                 // TODO: once we move ChangelogReader to a separate thread this may no longer be a concern
                 polledRecords = restoreConsumer.poll(state == ChangelogReaderState.STANDBY_UPDATING ? Duration.ZERO : pollTime);
+                final long pollEndTime = time.milliseconds();
+                pollSensor.record(min(pollStartTime - pollEndTime, 0), pollEndTime);
 
                 // TODO (?) If we cannot fetch records during restore, should we trigger `task.timeout.ms` ?
                 // TODO (?) If we cannot fetch records for standby task, should we trigger `task.timeout.ms` ?
