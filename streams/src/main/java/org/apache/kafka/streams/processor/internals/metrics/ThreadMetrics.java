@@ -36,6 +36,7 @@ import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetric
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addInvocationRateAndCountToSensor;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addRateOfSumAndSumMetricsToSensor;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addValueMetricToSensor;
+import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addSumMetricToSensor;
 
 public class ThreadMetrics {
     private ThreadMetrics() {}
@@ -66,6 +67,7 @@ public class ThreadMetrics {
     private static final String POLL_MAX_LATENCY_DESCRIPTION = "The maximum poll latency";
     private static final String POLL_AVG_RECORDS_DESCRIPTION = "The average number of records polled from consumer within an iteration";
     private static final String POLL_MAX_RECORDS_DESCRIPTION = "The maximum number of records polled from consumer within an iteration";
+    private static final String POLL_TOTAL_TIME_DESCRIPTION = "The total amount of time a thread has spent in poll";
     private static final String PROCESS_DESCRIPTION = "calls to process";
     private static final String PROCESS_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + PROCESS_DESCRIPTION;
     private static final String PROCESS_RATE_DESCRIPTION = RATE_DESCRIPTION + PROCESS_DESCRIPTION;
@@ -146,13 +148,14 @@ public class ThreadMetrics {
 
     public static Sensor pollSensor(final String threadId,
                                     final StreamsMetricsImpl streamsMetrics) {
-        return invocationRateAndCountAndAvgAndMaxLatencySensor(
+        return invocationRateAndCountAndAvgAndMaxLatencyAndTotalSumSensor(
             threadId,
             POLL,
             POLL_RATE_DESCRIPTION,
             POLL_TOTAL_DESCRIPTION,
             POLL_AVG_LATENCY_DESCRIPTION,
             POLL_MAX_LATENCY_DESCRIPTION,
+            POLL_TOTAL_TIME_DESCRIPTION,
             Sensor.RecordingLevel.INFO,
             streamsMetrics
         );
@@ -360,6 +363,44 @@ public class ThreadMetrics {
             metricName,
             descriptionOfRate,
             descriptionOfCount
+        );
+        return sensor;
+    }
+
+    private static Sensor invocationRateAndCountAndAvgAndMaxLatencyAndTotalSumSensor(final String threadId,
+                                                                                     final String metricName,
+                                                                                     final String descriptionOfRate,
+                                                                                     final String descriptionOfCount,
+                                                                                     final String descriptionOfAvg,
+                                                                                     final String descriptionOfMax,
+                                                                                     final String descriptionOfSum,
+                                                                                     final RecordingLevel recordingLevel,
+                                                                                     final StreamsMetricsImpl streamsMetrics) {
+        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, metricName, recordingLevel);
+        final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap(threadId);
+        final String threadLevelGroup = threadLevelGroup(streamsMetrics);
+        addAvgAndMaxToSensor(
+            sensor,
+            threadLevelGroup,
+            tagMap,
+            metricName + LATENCY_SUFFIX,
+            descriptionOfAvg,
+            descriptionOfMax
+        );
+        addInvocationRateAndCountToSensor(
+            sensor,
+            threadLevelGroup,
+            tagMap,
+            metricName,
+            descriptionOfRate,
+            descriptionOfCount
+        );
+        addSumMetricToSensor(
+            sensor,
+            threadLevelGroup,
+            tagMap,
+            metricName + "-time",
+            descriptionOfSum
         );
         return sensor;
     }

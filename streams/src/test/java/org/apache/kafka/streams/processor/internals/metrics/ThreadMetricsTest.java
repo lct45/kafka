@@ -223,6 +223,7 @@ public class ThreadMetricsTest {
         final String rateDescription = "The average per-second number of calls to poll";
         final String avgLatencyDescription = "The average poll latency";
         final String maxLatencyDescription = "The maximum poll latency";
+        final String totalTimeDescription = "The total amount of time a thread has spent in poll";
         expect(streamsMetrics.threadLevelSensor(THREAD_ID, operation, RecordingLevel.INFO)).andReturn(expectedSensor);
         expect(streamsMetrics.threadLevelTagMap(THREAD_ID)).andReturn(tagMap);
         StreamsMetricsImpl.addInvocationRateAndCountToSensor(
@@ -240,6 +241,13 @@ public class ThreadMetricsTest {
             operationLatency,
             avgLatencyDescription,
             maxLatencyDescription
+        );
+        StreamsMetricsImpl.addSumMetricToSensor(
+            expectedSensor,
+            threadLevelGroup,
+            tagMap,
+            operation + "-time",
+            totalTimeDescription
         );
         replay(StreamsMetricsImpl.class, streamsMetrics);
 
