@@ -37,6 +37,7 @@ import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.utils.LogContext;
+import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.streams.errors.ProductionExceptionHandler;
 import org.apache.kafka.streams.errors.ProductionExceptionHandler.ProductionExceptionHandlerResponse;
 import org.apache.kafka.streams.errors.StreamsException;
@@ -46,6 +47,7 @@ import org.apache.kafka.streams.processor.StreamPartitioner;
 import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
 import org.apache.kafka.streams.processor.internals.metrics.TaskMetrics;
+import org.apache.kafka.streams.processor.internals.metrics.ThreadMetrics;
 import org.slf4j.Logger;
 
 import java.util.Collections;
@@ -64,6 +66,7 @@ public class RecordCollectorImpl implements RecordCollector {
     private final Sensor droppedRecordsSensor;
     private final boolean eosEnabled;
     private final Map<TopicPartition, Long> offsets;
+    private final Sensor sendSensor;
 
     private final AtomicReference<KafkaException> sendException = new AtomicReference<>(null);
 
@@ -85,6 +88,7 @@ public class RecordCollectorImpl implements RecordCollector {
         this.droppedRecordsSensor = TaskMetrics.droppedRecordsSensorOrSkippedRecordsSensor(threadId, taskId.toString(), streamsMetrics);
 
         this.offsets = new HashMap<>();
+        this.sendSensor = ThreadMetrics.sendSensor(threadId, streamsMetrics);
     }
 
     @Override
@@ -179,6 +183,8 @@ public class RecordCollectorImpl implements RecordCollector {
 
         final ProducerRecord<byte[], byte[]> serializedRecord = new ProducerRecord<>(topic, partition, timestamp, keyBytes, valBytes, headers);
 
+        final Time time = Time.SYSTEM;
+        final long startTime = time.milliseconds();
         streamsProducer.send(serializedRecord, (metadata, exception) -> {
             // if there's already an exception record, skip logging offsets or new exceptions
             if (sendException.get() != null) {
@@ -199,6 +205,8 @@ public class RecordCollectorImpl implements RecordCollector {
                 log.trace("Failed record: (key {} value {} timestamp {}) topic=[{}] partition=[{}]", key, value, timestamp, topic, partition);
             }
         });
+        final long endTime = time.milliseconds();
+        sendSensor.record(Math.max(endTime - startTime, 0), endTime);
     }
 
     private void recordSendError(final String topic, final Exception exception, final ProducerRecord<byte[], byte[]> serializedRecord) {
