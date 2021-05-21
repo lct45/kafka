@@ -49,6 +49,7 @@ public class ThreadMetrics {
     private static final String CLOSE_TASK = "task-closed";
     private static final String SKIP_RECORD = "skipped-records";
     private static final String SEND = "send";
+    private static final String FLUSH = "flust";
 
     private static final String COMMIT_DESCRIPTION = "calls to commit";
     private static final String COMMIT_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + COMMIT_DESCRIPTION;
@@ -61,6 +62,7 @@ public class ThreadMetrics {
     private static final String CLOSE_TASK_DESCRIPTION = "closed tasks";
     private static final String CLOSE_TASK_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + CLOSE_TASK_DESCRIPTION;
     private static final String CLOSE_TASK_RATE_DESCRIPTION = RATE_DESCRIPTION + CLOSE_TASK_DESCRIPTION;
+    private static final String FLUSH_TOTAL_TIME_DESCRIPTION = "he total amount of time a thread has spent in flush";
     private static final String POLL_DESCRIPTION = "calls to poll";
     private static final String POLL_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + POLL_DESCRIPTION;
     private static final String POLL_RATE_DESCRIPTION = RATE_DESCRIPTION + POLL_DESCRIPTION;
@@ -348,6 +350,21 @@ public class ThreadMetrics {
             tagMap,
             SEND + "-time",
             SEND_TIME_DESCRIPTION
+        );
+        return sensor;
+    }
+
+    public static Sensor flushSensor(final String threadId,
+                                     final StreamsMetricsImpl streamsMetrics) {
+        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, FLUSH, Sensor.RecordingLevel.INFO);
+        final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap(threadId);
+        final String threadLevelGroup = threadLevelGroup(streamsMetrics);
+        addSumMetricToSensor(
+            sensor,
+            threadLevelGroup,
+            tagMap,
+            FLUSH + "-time",
+            FLUSH
         );
         return sensor;
     }

@@ -67,6 +67,8 @@ public class RecordCollectorImpl implements RecordCollector {
     private final boolean eosEnabled;
     private final Map<TopicPartition, Long> offsets;
     private final Sensor sendSensor;
+    private final Sensor flushSensor;
+    private final Time time = Time.SYSTEM;
 
     private final AtomicReference<KafkaException> sendException = new AtomicReference<>(null);
 
@@ -89,6 +91,7 @@ public class RecordCollectorImpl implements RecordCollector {
 
         this.offsets = new HashMap<>();
         this.sendSensor = ThreadMetrics.sendSensor(threadId, streamsMetrics);
+        this.flushSensor = ThreadMetrics.flushSensor(threadId, streamsMetrics);
     }
 
     @Override
@@ -183,7 +186,6 @@ public class RecordCollectorImpl implements RecordCollector {
 
         final ProducerRecord<byte[], byte[]> serializedRecord = new ProducerRecord<>(topic, partition, timestamp, keyBytes, valBytes, headers);
 
-        final Time time = Time.SYSTEM;
         final long startTime = time.milliseconds();
         streamsProducer.send(serializedRecord, (metadata, exception) -> {
             // if there's already an exception record, skip logging offsets or new exceptions
@@ -263,8 +265,11 @@ public class RecordCollectorImpl implements RecordCollector {
     @Override
     public void flush() {
         log.debug("Flushing record collector");
+        final long startTime = time.milliseconds();
         streamsProducer.flush();
         checkForException();
+        final long endTime = time.milliseconds();
+        flushSensor.record(Math.max(endTime - startTime, 0), endTime);
     }
 
     /**
