@@ -31,7 +31,9 @@ import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetric
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.TASK_LEVEL_GROUP;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.THREAD_LEVEL_GROUP;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.THREAD_LEVEL_GROUP_0100_TO_24;
+import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.TIME_SUFFIX;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.TOTAL_DESCRIPTION;
+import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.TOTAL_SUFFIX;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addAvgAndMaxToSensor;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addInvocationRateAndCountToSensor;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addRateOfSumAndSumMetricsToSensor;
@@ -49,7 +51,8 @@ public class ThreadMetrics {
     private static final String CLOSE_TASK = "task-closed";
     private static final String SKIP_RECORD = "skipped-records";
     private static final String SEND = "send";
-    private static final String FLUSH = "flust";
+    private static final String FLUSH = "flush";
+    private static final String TRANSACTION = "transaction";
 
     private static final String COMMIT_DESCRIPTION = "calls to commit";
     private static final String COMMIT_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + COMMIT_DESCRIPTION;
@@ -62,7 +65,7 @@ public class ThreadMetrics {
     private static final String CLOSE_TASK_DESCRIPTION = "closed tasks";
     private static final String CLOSE_TASK_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + CLOSE_TASK_DESCRIPTION;
     private static final String CLOSE_TASK_RATE_DESCRIPTION = RATE_DESCRIPTION + CLOSE_TASK_DESCRIPTION;
-    private static final String FLUSH_TOTAL_TIME_DESCRIPTION = "he total amount of time a thread has spent in flush";
+    private static final String FLUSH_TOTAL_TIME_DESCRIPTION = "The total amount of time a thread has spent in flush";
     private static final String POLL_DESCRIPTION = "calls to poll";
     private static final String POLL_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + POLL_DESCRIPTION;
     private static final String POLL_RATE_DESCRIPTION = RATE_DESCRIPTION + POLL_DESCRIPTION;
@@ -88,6 +91,7 @@ public class ThreadMetrics {
     private static final String SKIP_RECORDS_DESCRIPTION = "skipped records";
     private static final String SKIP_RECORD_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + SKIP_RECORDS_DESCRIPTION;
     private static final String SKIP_RECORD_RATE_DESCRIPTION = RATE_DESCRIPTION + SKIP_RECORDS_DESCRIPTION;
+    private static final String TRANSACTION_COMMIT_TOTAL_TIME_DESCRIPTION = "The total amount of time a thread has spent committing transactions";
     private static final String COMMIT_OVER_TASKS_DESCRIPTION =
         "calls to commit over all tasks assigned to one stream thread";
     private static final String COMMIT_OVER_TASKS_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + COMMIT_OVER_TASKS_DESCRIPTION;
@@ -348,7 +352,7 @@ public class ThreadMetrics {
             sensor,
             threadLevelGroup,
             tagMap,
-            SEND + "-time",
+            SEND + TIME_SUFFIX,
             SEND_TIME_DESCRIPTION
         );
         return sensor;
@@ -363,8 +367,23 @@ public class ThreadMetrics {
             sensor,
             threadLevelGroup,
             tagMap,
-            FLUSH + "-time",
-            FLUSH
+            FLUSH + TIME_SUFFIX,
+            FLUSH_TOTAL_TIME_DESCRIPTION
+        );
+        return sensor;
+    }
+
+    public static Sensor transactionCommitSensor(final String threadId,
+                                                 final StreamsMetricsImpl streamsMetrics) {
+        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, TRANSACTION, Sensor.RecordingLevel.INFO);
+        final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap(threadId);
+        final String threadLevelGroup = threadLevelGroup(streamsMetrics);
+        addSumMetricToSensor(
+            sensor,
+            threadLevelGroup,
+            tagMap,
+            TRANSACTION + "-commit" + TIME_SUFFIX,
+            TRANSACTION_COMMIT_TOTAL_TIME_DESCRIPTION
         );
         return sensor;
     }
@@ -449,7 +468,7 @@ public class ThreadMetrics {
             sensor,
             threadLevelGroup,
             tagMap,
-            metricName + "-time",
+            metricName + TOTAL_SUFFIX + TIME_SUFFIX,
             descriptionOfSum
         );
         return sensor;

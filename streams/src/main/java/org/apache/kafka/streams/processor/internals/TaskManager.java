@@ -28,6 +28,7 @@ import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.streams.errors.LockException;
@@ -38,6 +39,7 @@ import org.apache.kafka.streams.errors.TaskMigratedException;
 import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.internals.Task.State;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
+import org.apache.kafka.streams.processor.internals.metrics.ThreadMetrics;
 import org.apache.kafka.streams.state.internals.OffsetCheckpoint;
 import org.slf4j.Logger;
 
@@ -81,6 +83,8 @@ public class TaskManager {
     private final StateDirectory stateDirectory;
     private final StreamThread.ProcessingMode processingMode;
     private final Tasks tasks;
+    private final Sensor transactionCommitSensor;
+    private final StreamsMetricsImpl streamsMetrics;
 
     private Consumer<byte[], byte[]> mainConsumer;
 
@@ -114,6 +118,9 @@ public class TaskManager {
 
         final LogContext logContext = new LogContext(logPrefix);
         log = logContext.logger(getClass());
+        final String threadId = Thread.currentThread().getName();
+        this.transactionCommitSensor = ThreadMetrics.transactionCommitSensor(threadId, streamsMetrics);
+        this.streamsMetrics = streamsMetrics;
     }
 
     void setMainConsumer(final Consumer<byte[], byte[]> mainConsumer) {
@@ -814,6 +821,7 @@ public class TaskManager {
         if (fatalException != null) {
             throw new RuntimeException("Unexpected exception while closing task", fatalException);
         }
+        streamsMetrics.removeAllThreadLevelSensors(Thread.currentThread().getName());
     }
 
     // Returns the set of active tasks that must be closed dirty
@@ -1083,7 +1091,7 @@ public class TaskManager {
         log.debug("Committing task offsets {}", offsetsPerTask.entrySet().stream().collect(Collectors.toMap(t -> t.getKey().id(), Entry::getValue))); // avoid logging actual Task objects
 
         final Set<TaskId> corruptedTasks = new HashSet<>();
-
+        final long startTime = time.milliseconds();
         if (!offsetsPerTask.isEmpty()) {
             if (processingMode == EXACTLY_ONCE_ALPHA) {
                 for (final Map.Entry<Task, Map<TopicPartition, OffsetAndMetadata>> taskToCommit : offsetsPerTask.entrySet()) {
@@ -1145,7 +1153,8 @@ public class TaskManager {
                     }
                 }
             }
-
+            final long endTime = time.milliseconds();
+            transactionCommitSensor.record(Math.max(endTime - startTime, 0), endTime);
             if (!corruptedTasks.isEmpty()) {
                 throw new TaskCorruptedException(corruptedTasks);
             }

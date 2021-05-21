@@ -131,6 +131,7 @@ public class StreamsMetricsImpl implements StreamsMetrics {
     public static final String RATE_SUFFIX = "-rate";
     public static final String TOTAL_SUFFIX = "-total";
     public static final String RATIO_SUFFIX = "-ratio";
+    public static final String TIME_SUFFIX = "-time";
 
     public static final String GROUP_PREFIX_WO_DELIMITER = "stream";
     public static final String GROUP_PREFIX = GROUP_PREFIX_WO_DELIMITER + "-";
