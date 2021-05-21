@@ -224,7 +224,7 @@ public class ThreadMetricsTest {
             expectedSensor,
             threadLevelGroup,
             tagMap,
-            operation + "-time",
+            operation + "-total" + "-time",
             totalTimeDescription
         );
         replay(StreamsMetricsImpl.class, streamsMetrics);
