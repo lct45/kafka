@@ -53,7 +53,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.lang.Long.min;
 import static org.apache.kafka.streams.processor.internals.ClientUtils.fetchCommittedOffsets;
 
 /**
@@ -439,7 +438,7 @@ public class StoreChangelogReader implements ChangelogReader {
                 // TODO: once we move ChangelogReader to a separate thread this may no longer be a concern
                 polledRecords = restoreConsumer.poll(state == ChangelogReaderState.STANDBY_UPDATING ? Duration.ZERO : pollTime);
                 final long pollEndTime = time.milliseconds();
-                pollSensor.record(min(pollStartTime - pollEndTime, 0), pollEndTime);
+                pollSensor.record(Math.max(pollStartTime - pollEndTime, 0), pollEndTime);
 
                 // TODO (?) If we cannot fetch records during restore, should we trigger `task.timeout.ms` ?
                 // TODO (?) If we cannot fetch records for standby task, should we trigger `task.timeout.ms` ?

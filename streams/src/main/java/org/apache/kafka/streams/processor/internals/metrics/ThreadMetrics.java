@@ -46,6 +46,7 @@ public class ThreadMetrics {
     private static final String CREATE_TASK = "task-created";
     private static final String CLOSE_TASK = "task-closed";
     private static final String SKIP_RECORD = "skipped-records";
+    private static final String SEND = "send";
 
     private static final String COMMIT_DESCRIPTION = "calls to commit";
     private static final String COMMIT_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + COMMIT_DESCRIPTION;
@@ -79,6 +80,7 @@ public class ThreadMetrics {
     private static final String PUNCTUATE_AVG_LATENCY_DESCRIPTION = "The average punctuate latency";
     private static final String PUNCTUATE_MAX_LATENCY_DESCRIPTION = "The maximum punctuate latency";
     private static final String RESTORE_CONSUMER_POLL_TIME_DESCRIPTION = "The amount of time spent in poll by the restore consumer";
+    private static final String SEND_TIME_DESCRIPTION = "The amount of time a streams thread has spent in send";
     private static final String SKIP_RECORDS_DESCRIPTION = "skipped records";
     private static final String SKIP_RECORD_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + SKIP_RECORDS_DESCRIPTION;
     private static final String SKIP_RECORD_RATE_DESCRIPTION = RATE_DESCRIPTION + SKIP_RECORDS_DESCRIPTION;
@@ -325,6 +327,21 @@ public class ThreadMetrics {
             tagMap,
             COMMIT + RATIO_SUFFIX,
             COMMIT_RATIO_DESCRIPTION
+        );
+        return sensor;
+    }
+
+    public static Sensor sendSensor(final String threadId,
+                                    final StreamsMetricsImpl streamsMetrics) {
+        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, SEND, Sensor.RecordingLevel.INFO);
+        final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap(threadId);
+        final String threadLevelGroup = threadLevelGroup(streamsMetrics);
+        addSumMetricToSensor(
+            sensor,
+            threadLevelGroup,
+            tagMap,
+            SEND + "-time",
+            SEND_TIME_DESCRIPTION
         );
         return sensor;
     }
