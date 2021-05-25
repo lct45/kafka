@@ -31,12 +31,11 @@ import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetric
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.THREAD_LEVEL_GROUP;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.TIME_SUFFIX;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.TOTAL_DESCRIPTION;
-import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.TOTAL_SUFFIX;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addAvgAndMaxToSensor;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addInvocationRateAndCountToSensor;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addRateOfSumAndSumMetricsToSensor;
-import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addValueMetricToSensor;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addSumMetricToSensor;
+import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addValueMetricToSensor;
 
 public class ThreadMetrics {
     private ThreadMetrics() {}
@@ -50,7 +49,7 @@ public class ThreadMetrics {
     private static final String SKIP_RECORD = "skipped-records";
     private static final String SEND = "send";
     private static final String FLUSH = "flush";
-    private static final String TRANSACTION = "transaction";
+    private static final String RESTORE_CONSUMER = "restore-consumer";
 
     private static final String COMMIT_DESCRIPTION = "calls to commit";
     private static final String COMMIT_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + COMMIT_DESCRIPTION;
@@ -89,6 +88,7 @@ public class ThreadMetrics {
     private static final String SKIP_RECORDS_DESCRIPTION = "skipped records";
     private static final String SKIP_RECORD_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + SKIP_RECORDS_DESCRIPTION;
     private static final String SKIP_RECORD_RATE_DESCRIPTION = RATE_DESCRIPTION + SKIP_RECORDS_DESCRIPTION;
+    private static final String TRANSACTION_BEGIN_TOTAL_TIME_DESCRIPTION = "The total amount of time a thread has spent in Producer.begin";
     private static final String TRANSACTION_COMMIT_TOTAL_TIME_DESCRIPTION = "The total amount of time a thread has spent committing transactions";
     private static final String COMMIT_OVER_TASKS_DESCRIPTION =
         "calls to commit over all tasks assigned to one stream thread";
@@ -170,17 +170,7 @@ public class ThreadMetrics {
 
     public static Sensor restoreConsumerPollSensor(final String threadId,
                                                    final StreamsMetricsImpl streamsMetrics) {
-        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, "restore-consumer-poll", Sensor.RecordingLevel.INFO);
-        final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap(threadId);
-        final String threadLevelGroup = THREAD_LEVEL_GROUP;
-        addSumMetricToSensor(
-            sensor,
-            threadLevelGroup,
-            tagMap,
-            "restore-consumer-poll-time",
-            RESTORE_CONSUMER_POLL_TIME_DESCRIPTION
-        );
-        return sensor;
+        return sumSensor(threadId, RESTORE_CONSUMER + POLL, RESTORE_CONSUMER_POLL_TIME_DESCRIPTION, RecordingLevel.INFO, streamsMetrics);
     }
 
     public static Sensor processLatencySensor(final String threadId,
@@ -339,47 +329,32 @@ public class ThreadMetrics {
 
     public static Sensor sendSensor(final String threadId,
                                     final StreamsMetricsImpl streamsMetrics) {
-        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, SEND, Sensor.RecordingLevel.INFO);
-        final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap(threadId);
-        final String threadLevelGroup = THREAD_LEVEL_GROUP;
-        addSumMetricToSensor(
-            sensor,
-            threadLevelGroup,
-            tagMap,
-            SEND + TIME_SUFFIX,
-            SEND_TIME_DESCRIPTION
-        );
-        return sensor;
+        return sumSensor(threadId, SEND, SEND_TIME_DESCRIPTION, RecordingLevel.INFO, streamsMetrics);
     }
 
     public static Sensor flushSensor(final String threadId,
                                      final StreamsMetricsImpl streamsMetrics) {
-        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, FLUSH, Sensor.RecordingLevel.INFO);
-        final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap(threadId);
-        final String threadLevelGroup = THREAD_LEVEL_GROUP;
-        addSumMetricToSensor(
-            sensor,
-            threadLevelGroup,
-            tagMap,
-            FLUSH + TIME_SUFFIX,
-            FLUSH_TOTAL_TIME_DESCRIPTION
-        );
-        return sensor;
+        return sumSensor(threadId, FLUSH, FLUSH_TOTAL_TIME_DESCRIPTION, RecordingLevel.INFO, streamsMetrics);
     }
 
-    public static Sensor transactionCommitSensor(final String threadId,
-                                                 final StreamsMetricsImpl streamsMetrics) {
-        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, TRANSACTION, Sensor.RecordingLevel.INFO);
+    private static Sensor sumSensor(final String threadId,
+                                    final String metricName,
+                                    final String descriptionOfSum,
+                                    final RecordingLevel recordingLevel,
+                                    final StreamsMetricsImpl streamsMetrics) {
+
+        final Sensor sensor = streamsMetrics.threadLevelSensor(threadId, metricName, recordingLevel);
         final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap(threadId);
         final String threadLevelGroup = THREAD_LEVEL_GROUP;
         addSumMetricToSensor(
             sensor,
             threadLevelGroup,
             tagMap,
-            TRANSACTION + "-commit" + TIME_SUFFIX,
-            TRANSACTION_COMMIT_TOTAL_TIME_DESCRIPTION
+            metricName + TIME_SUFFIX,
+            descriptionOfSum
         );
         return sensor;
+
     }
 
     private static Sensor invocationRateAndCountSensor(final String threadId,
@@ -460,7 +435,7 @@ public class ThreadMetrics {
             sensor,
             threadLevelGroup,
             tagMap,
-            metricName + TOTAL_SUFFIX + TIME_SUFFIX,
+            metricName + TIME_SUFFIX,
             descriptionOfSum
         );
         return sensor;

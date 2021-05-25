@@ -54,8 +54,6 @@ import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
 import org.apache.kafka.streams.processor.internals.testutil.LogCaptureAppender;
 import org.apache.kafka.test.MockClientSupplier;
-
-import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -64,6 +62,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -75,6 +74,7 @@ import static org.easymock.EasyMock.mock;
 import static org.easymock.EasyMock.replay;
 import static org.easymock.EasyMock.verify;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -875,6 +875,44 @@ public class RecordCollectorTest {
 
         // Flush should not throw as producer is still alive.
         streamsProducer.flush();
+    }
+
+    @Test
+    public void shouldLogTimeForSendAndFlush() {
+        final RecordCollector collector = new RecordCollectorImpl(
+            logContext,
+            taskId,
+            getExceptionalStreamsProducerOnSend(new Exception()),
+            new AlwaysContinueProductionExceptionHandler(),
+            streamsMetrics
+        );
+
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, streamPartitioner);
+        collector.flush();
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, streamPartitioner);
+        collector.flush();
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, streamPartitioner);
+        collector.flush();
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, streamPartitioner);
+        collector.flush();
+        final Metric flushMetric = streamsMetrics.metrics().get(new MetricName(
+            "flush-time-total",
+            "stream-thread-metrics",
+            "The total amount of time a thread has spent in flush",
+            mkMap(
+                mkEntry("thread-id", Thread.currentThread().getName())
+            )
+        ));
+        final Metric sendMetric = streamsMetrics.metrics().get(new MetricName(
+            "send-time-total",
+            "stream-thread-metrics",
+            "The amount of time a streams thread has spent in send",
+            mkMap(
+                mkEntry("thread-id", Thread.currentThread().getName())
+            )
+        ));
+       // assertThat(double) flushMetric.metricValue(), greaterThan(0.0));
+        assertThat((double) sendMetric.metricValue(), greaterThan(0.0));
     }
 
     private StreamsProducer getExceptionalStreamsProducerOnSend(final Exception exception) {
