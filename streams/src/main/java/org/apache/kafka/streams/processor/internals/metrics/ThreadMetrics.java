@@ -52,6 +52,7 @@ public class ThreadMetrics {
     private static final String SEND = "send";
     private static final String FLUSH = "flush";
     private static final String RESTORE_CONSUMER = "restore-consumer";
+    private static final String START_TIME = "thread-start-time";
 
     private static final String COMMIT_DESCRIPTION = "calls to commit";
     private static final String COMMIT_TOTAL_DESCRIPTION = TOTAL_DESCRIPTION + COMMIT_DESCRIPTION;
@@ -104,6 +105,7 @@ public class ThreadMetrics {
         "The fraction of time the thread spent on polling records from consumer";
     private static final String COMMIT_RATIO_DESCRIPTION =
         "The fraction of time the thread spent on committing all tasks";
+    private static final String THREAD_START_TIME_DESCRIPTION = "The time a thread was started";
 
     public static Sensor createTaskSensor(final String threadId,
                                           final StreamsMetricsImpl streamsMetrics) {
@@ -341,6 +343,12 @@ public class ThreadMetrics {
     public static Sensor flushSensor(final String threadId,
                                      final StreamsMetricsImpl streamsMetrics) {
         return sumSensor(threadId, FLUSH, FLUSH_TOTAL_TIME_DESCRIPTION, RecordingLevel.INFO, streamsMetrics);
+    }
+
+    public static void addStartTimeMetric(final String threadId,
+                                          final StreamsMetricsImpl streamsMetrics,
+                                          final long threadTime) {
+        streamsMetrics.addThreadLevelImmutableMetric(START_TIME, threadId, THREAD_START_TIME_DESCRIPTION, RecordingLevel.INFO, threadTime);
     }
 
     private static Sensor sumSensor(final String threadId,

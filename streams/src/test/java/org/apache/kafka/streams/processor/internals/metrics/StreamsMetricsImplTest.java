@@ -673,13 +673,13 @@ public class StreamsMetricsImplTest {
     }
 
     @Test
-    public void shouldRemoveThreadLevelSensors() {
+    public void shouldRemoveThreadLevelSensorsAndMetrics() {
         final Metrics metrics = niceMock(Metrics.class);
         final StreamsMetricsImpl streamsMetrics = new StreamsMetricsImpl(metrics, CLIENT_ID, VERSION, time);
         addSensorsOnAllLevels(metrics, streamsMetrics);
         setupRemoveSensorsTest(metrics, THREAD_ID1);
 
-        streamsMetrics.removeAllThreadLevelSensors(THREAD_ID1);
+        streamsMetrics.removeAllThreadLevelSensorsAndMetrics(THREAD_ID1);
 
         verify(metrics);
     }
