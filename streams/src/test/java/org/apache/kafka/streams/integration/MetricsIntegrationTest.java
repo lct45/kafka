@@ -64,6 +64,7 @@ import java.util.stream.Collectors;
 import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.safeUniqueTestName;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 
 @Category({IntegrationTest.class})
 public class MetricsIntegrationTest {
@@ -154,8 +155,10 @@ public class MetricsIntegrationTest {
     private static final String RANGE_TOTAL = "range-total";
     private static final String FLUSH_RATE = "flush-rate";
     private static final String FLUSH_TOTAL = "flush-total";
+    private static final String FLUSH_TOTAL_TIME = "flush-time-total";
     private static final String RESTORE_RATE = "restore-rate";
     private static final String RESTORE_TOTAL = "restore-total";
+    private static final String RESTORE_CONSUMER_POLL = "restore-consumer-poll-time-total";
     private static final String PROCESS_LATENCY_AVG = "process-latency-avg";
     private static final String PROCESS_LATENCY_MAX = "process-latency-max";
     private static final String PUNCTUATE_LATENCY_AVG = "punctuate-latency-avg";
@@ -183,6 +186,7 @@ public class MetricsIntegrationTest {
     private static final String COMMIT_LATENCY_MAX = "commit-latency-max";
     private static final String POLL_LATENCY_AVG = "poll-latency-avg";
     private static final String POLL_LATENCY_MAX = "poll-latency-max";
+    private static final String POLL_TOTAL_TIME = "poll-time-total";
     private static final String COMMIT_RATE = "commit-rate";
     private static final String COMMIT_TOTAL = "commit-total";
     private static final String COMMIT_RATIO = "commit-ratio";
@@ -199,6 +203,7 @@ public class MetricsIntegrationTest {
     private static final String TASK_CLOSED_TOTAL = "task-closed-total";
     private static final String ACTIVE_PROCESS_RATIO = "active-process-ratio";
     private static final String ACTIVE_BUFFER_COUNT = "active-buffer-count";
+    private static final String SEND_TOTAL_TIME = "send-time-total";
     private static final String SKIPPED_RECORDS_RATE = "skipped-records-rate";
     private static final String SKIPPED_RECORDS_TOTAL = "skipped-records-total";
     private static final String RECORD_LATENESS_AVG = "record-lateness-avg";
@@ -569,6 +574,11 @@ public class MetricsIntegrationTest {
             SKIPPED_RECORDS_TOTAL,
             StreamsConfig.METRICS_LATEST.equals(builtInMetricsVersion) ? 0 : NUM_THREADS
         );
+        checkMetricByName(listMetricThread, POLL_TOTAL_TIME, NUM_THREADS);
+        checkMetricByName(listMetricThread, SEND_TOTAL_TIME, NUM_THREADS);
+        checkMetricByName(listMetricThread, FLUSH_TOTAL_TIME, NUM_THREADS);
+        checkMetricLogged(listMetricThread, POLL_TOTAL_TIME);
+        checkMetricLogged(listMetricThread, RESTORE_CONSUMER_POLL);
     }
 
     private void checkTaskLevelMetrics(final String builtInMetricsVersion) {
@@ -855,12 +865,23 @@ public class MetricsIntegrationTest {
     }
 
     private void checkMetricByName(final List<Metric> listMetric, final String metricName, final int numMetric) {
-        final List<Metric> metrics = listMetric.stream()
-            .filter(m -> m.metricName().name().equals(metricName))
-            .collect(Collectors.toList());
+        final List<Metric> metrics = getMetricList(listMetric, metricName);
         Assert.assertEquals("Size of metrics of type:'" + metricName + "' must be equal to " + numMetric + " but it's equal to " + metrics.size(), numMetric, metrics.size());
         for (final Metric m : metrics) {
             Assert.assertNotNull("Metric:'" + m.metricName() + "' must be not null", m.metricValue());
         }
+    }
+
+    private void checkMetricLogged(final List<Metric> listMetric, final String metricName) {
+        final List<Metric> metrics = getMetricList(listMetric, metricName);
+        for (final Metric m : metrics) {
+            org.hamcrest.MatcherAssert.assertThat((double) m.metricValue(), greaterThan(0.0));
+        }
+    }
+
+    private List<Metric> getMetricList(final List<Metric> listMetric, final String metricName) {
+        return listMetric.stream()
+            .filter(m -> m.metricName().name().equals(metricName))
+            .collect(Collectors.toList());
     }
 }
