@@ -420,6 +420,7 @@ public class StreamThread extends Thread {
             cache::resize
         );
 
+        ThreadMetrics.addStartTimeMetric(threadId, streamsMetrics, System.currentTimeMillis());
         return streamThread.updateThreadMetadata(getSharedAdminClientId(clientId));
     }
 
@@ -1100,7 +1101,7 @@ public class StreamThread extends Thread {
         } catch (final Throwable e) {
             log.error("Failed to close restore consumer due to the following error:", e);
         }
-        streamsMetrics.removeAllThreadLevelSensors(getName());
+        streamsMetrics.removeAllThreadLevelSensorsAndMetrics(getName());
 
         setState(State.DEAD);
 

@@ -92,6 +92,7 @@ public class StreamsMetricsImpl implements StreamsMetrics {
     private final Deque<MetricName> clientLevelMetrics = new LinkedList<>();
     private final Deque<String> clientLevelSensors = new LinkedList<>();
     private final Map<String, Deque<String>> threadLevelSensors = new HashMap<>();
+    private final Deque<MetricName> threadLevelMetrics = new LinkedList<>();
     private final Map<String, Deque<String>> taskLevelSensors = new HashMap<>();
     private final Map<String, Deque<String>> nodeLevelSensors = new HashMap<>();
     private final Map<String, Deque<String>> cacheLevelSensors = new HashMap<>();
@@ -229,6 +230,19 @@ public class StreamsMetricsImpl implements StreamsMetrics {
         return SENSOR_INTERNAL_LABEL + SENSOR_PREFIX_DELIMITER + threadId;
     }
 
+    public <T> void addThreadLevelImmutableMetric(final String name,
+                                                  final String threadId,
+                                                  final String description,
+                                                  final RecordingLevel recordingLevel,
+                                                  final T value) {
+        final MetricName metricName = metrics.metricName(name, THREAD_LEVEL_GROUP, description, threadLevelTagMap(threadId));
+        final MetricConfig metricConfig = new MetricConfig().recordLevel(recordingLevel);
+        synchronized (threadLevelMetrics) {
+            metrics.addMetric(metricName, metricConfig, new ImmutableMetricValue<>(value));
+            threadLevelMetrics.push(metricName);
+        }
+    }
+
     public Map<String, String> clientLevelTagMap() {
         final Map<String, String> tagMap = new LinkedHashMap<>();
         tagMap.put(CLIENT_ID_TAG, clientId);
@@ -262,12 +276,25 @@ public class StreamsMetricsImpl implements StreamsMetrics {
         }
     }
 
-    public final void removeAllThreadLevelSensors(final String threadId) {
+    public final void removeAllThreadLevelSensorsAndMetrics(final String threadId) {
+        removeAllThreadLevelSensors(threadId);
+        removeAllThreadLevelMetrics();
+    }
+
+    private final void removeAllThreadLevelSensors(final String threadId) {
         final String key = threadSensorPrefix(threadId);
         synchronized (threadLevelSensors) {
             final Deque<String> sensors = threadLevelSensors.remove(key);
             while (sensors != null && !sensors.isEmpty()) {
                 metrics.removeSensor(sensors.pop());
+            }
+        }
+    }
+
+    private final void removeAllThreadLevelMetrics() {
+        synchronized (threadLevelMetrics) {
+            while (!threadLevelMetrics.isEmpty()) {
+                metrics.removeMetric(threadLevelMetrics.pop());
             }
         }
     }
