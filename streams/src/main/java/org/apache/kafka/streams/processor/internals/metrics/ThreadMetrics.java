@@ -172,7 +172,7 @@ public class ThreadMetrics {
 
     public static Sensor restoreConsumerPollSensor(final String threadId,
                                                    final StreamsMetricsImpl streamsMetrics) {
-        return sumSensor(threadId, RESTORE_CONSUMER + POLL, RESTORE_CONSUMER_POLL_TIME_DESCRIPTION, RecordingLevel.INFO, streamsMetrics);
+        return sumSensor(threadId, RESTORE_CONSUMER + "-" + POLL, RESTORE_CONSUMER_POLL_TIME_DESCRIPTION, RecordingLevel.INFO, streamsMetrics);
     }
 
     public static Sensor processLatencySensor(final String threadId,
