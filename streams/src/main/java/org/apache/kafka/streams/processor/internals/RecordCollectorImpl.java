@@ -79,6 +79,27 @@ public class RecordCollectorImpl implements RecordCollector {
                                final TaskId taskId,
                                final StreamsProducer streamsProducer,
                                final ProductionExceptionHandler productionExceptionHandler,
+                               final StreamsMetricsImpl streamsMetrics,
+                               final Sensor sendSensor,
+                               final Sensor flushSensor) {
+        this.log = logContext.logger(getClass());
+        this.taskId = taskId;
+        this.streamsProducer = streamsProducer;
+        this.productionExceptionHandler = productionExceptionHandler;
+        this.eosEnabled = streamsProducer.eosEnabled();
+
+        final String threadId = Thread.currentThread().getName();
+        this.droppedRecordsSensor = TaskMetrics.droppedRecordsSensorOrSkippedRecordsSensor(threadId, taskId.toString(), streamsMetrics);
+
+        this.offsets = new HashMap<>();
+        this.sendSensor = sendSensor;
+        this.flushSensor = flushSensor;
+    }
+    // temporary for testing, will remove later
+    public RecordCollectorImpl(final LogContext logContext,
+                               final TaskId taskId,
+                               final StreamsProducer streamsProducer,
+                               final ProductionExceptionHandler productionExceptionHandler,
                                final StreamsMetricsImpl streamsMetrics) {
         this.log = logContext.logger(getClass());
         this.taskId = taskId;

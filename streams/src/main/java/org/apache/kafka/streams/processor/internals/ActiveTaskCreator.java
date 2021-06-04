@@ -227,7 +227,9 @@ class ActiveTaskCreator {
             taskId,
             streamsProducer,
             config.defaultProductionExceptionHandler(),
-            streamsMetrics
+            streamsMetrics,
+            ThreadMetrics.sendSensor(threadId, streamsMetrics),
+            ThreadMetrics.flushSensor(threadId, streamsMetrics)
         );
 
         final StreamTask task = new StreamTask(
