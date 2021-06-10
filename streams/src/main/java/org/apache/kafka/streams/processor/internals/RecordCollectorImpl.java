@@ -89,7 +89,7 @@ public class RecordCollectorImpl implements RecordCollector {
         this.eosEnabled = streamsProducer.eosEnabled();
 
         final String threadId = Thread.currentThread().getName();
-        this.droppedRecordsSensor = TaskMetrics.droppedRecordsSensorOrSkippedRecordsSensor(threadId, taskId.toString(), streamsMetrics);
+        this.droppedRecordsSensor = TaskMetrics.droppedRecordsSensor(threadId, taskId.toString(), streamsMetrics);
 
         this.offsets = new HashMap<>();
         this.sendSensor = sendSensor;

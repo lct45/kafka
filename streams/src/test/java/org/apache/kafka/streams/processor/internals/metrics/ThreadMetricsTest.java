@@ -222,7 +222,7 @@ public class ThreadMetricsTest {
         );
         StreamsMetricsImpl.addSumMetricToSensor(
             expectedSensor,
-            threadLevelGroup,
+            THREAD_LEVEL_GROUP,
             tagMap,
             operation + "-total" + "-time",
             totalTimeDescription
